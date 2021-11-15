@@ -1,0 +1,70 @@
+# To create new directory in current directory
+hadoop fs -mkdir oct19
+hadoop fs -mkdir nov19
+
+hadoop fs -ls /user/hadoop
+
+// This folder is inside hadoop directory which is inside user directory.
+
+# To copy files from S3 to hdfs
+  hadoop distcp s3a://e-commerce-events-ml/2019-Oct.csv /user/hadoop/oct19
+
+  hadoop distcp s3a://e-commerce-events-ml/2019-Nov.csv /user/hadoop/nov19
+
+# Launch hive
+hive
+
+# To create database
+create database if not exists case_study;
+
+# to create table - oct19imp (using csvserde)
+create external table if not exists oct19imp(event_time timestamp, event_type string, product_id string, category_id string, category_code string, brand string, price double, user_id bigint, user_session string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = ","
+)
+location '/user/hadoop/oct19'
+tblproperties ("skip.header.line.count"="1");
+
+# To create table - nov19 (using csvserde)
+create external table if not exists nov19imp(event_time timestamp, event_type string, product_id string, category_id string, category_code string, brand string, price double, user_id bigint, user_session string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   "separatorChar" = ","
+)
+location '/user/hadoop/nov19'
+tblproperties ("skip.header.line.count"="1");
+
+
+# Table with target datatype - oct19
+create table if not exists oct19(event_time timestamp, event_type string, product_id string, category_id string, category_code string, brand string, price double, user_id bigint, user_session string)
+row format delimited fields terminated by ',' lines terminated by '\n' stored as textfile;
+
+# To overwrite data
+insert overwrite table oct19
+select * from oct19imp;
+
+# Table with target datatype - nov19
+create table if not exists nov19(event_time timestamp, event_type string, product_id string, category_id string, category_code string, brand string, price double, user_id bigint, user_session string)
+row format delimited fields terminated by ',' lines terminated by '\n' stored as textfile;
+
+# To overwrite data
+insert overwrite table nov19
+select * from nov19imp;
+
+# To allow to do dynamic partitioning
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode = nonstrict;
+
+# To create partitioned table p_oct19
+CATEGORY_CODE & BRAND are partitioned.
+
+  create table if not exists p_oct19 (
+  event_time timestamp, event_type string, product_id string, category_code string, price double, user_id bigint, user_session string, brand string)
+  partitioned by (category_id string)
+  row format delimited fields terminated by ',' lines terminated by '\n' stored as textfile;
+
+# Inserting data into p_oct19
+
+  insert into table p_oct19 partition(category_id)
+    select event_time, event_type, product_id, category_code, price, user_id, user_session, brand, category_id from oct19;
